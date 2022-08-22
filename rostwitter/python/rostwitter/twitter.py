@@ -5,7 +5,7 @@ import json as simplejson
 import requests
 try:
     from itertools import zip_longest
-except (ImportError, ModuleNotFoundError):
+except ImportError:
     from itertools import izip_longest as zip_longest
 from requests_oauthlib import OAuth1
 

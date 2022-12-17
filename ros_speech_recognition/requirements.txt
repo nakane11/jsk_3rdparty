@@ -1,2 +1,4 @@
 SpeechRecognition==3.9.0
 git+https://github.com/openai/whisper.git
+torch==1.13.1
+numpy==1.21.6

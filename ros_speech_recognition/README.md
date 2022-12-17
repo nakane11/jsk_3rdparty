@@ -185,7 +185,20 @@ This package uses Python package [SpeechRecognition](https://pypi.python.org/pyp
 
   Auth key for Bing API.  
   This is valid only if `~engine` is `bing`.
+
+* `~whisper_model` (`String`, default: `base`)
+
+  Model can be any of tiny, base, small, medium, large, tiny.en, base.en, small.en, medium.en. See https://github.com/openai/whisper for more details.
   
+* `~whisper_lang` (`String`, default: `english`)
+
+  The recognition language is determined by language, an uncapitalized full language name like "english" or "chinese".
+  See the full language list at https://github.com/openai/whisper/blob/main/whisper/tokenizer.py.
+
+* `~whisper_translate` (`Bool`, default: `False`)
+
+  Translate the result to english.
+
 ## Author
 
 Yuki Furuta <<furushchev@jsk.imi.i.u-tokyo.ac.jp>>

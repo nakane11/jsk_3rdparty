@@ -198,6 +198,7 @@ class ROSSpeechRecognition(object):
         if self.engine != config.engine:
             self.args = {}
             self.engine = config.engine
+            rospy.loginfo("Engine: {}".format(self.engine))
 
         # config for adaptive thresholding
         self.dynamic_energy_threshold = config.dynamic_energy_threshold
@@ -274,6 +275,12 @@ class ROSSpeechRecognition(object):
             recog_func = self.recognizer.recognize_houndify
         elif self.engine == Config.SpeechRecognition_IBM:
             recog_func = self.recognizer.recognize_ibm
+        elif self.engine == Config.SpeechRecognition_Whisper:
+            if not self.args:
+                self.args = {'model': rospy.get_param("~whisper_model", 'base'),
+                             'translate': rospy.get_param("~whisper_translate", False)}
+                self.language = rospy.get_param("~whisper_lang", 'english')
+            recog_func = self.recognizer.recognize_whisper
 
         return recog_func(audio_data=audio, language=self.language, **self.args)
 

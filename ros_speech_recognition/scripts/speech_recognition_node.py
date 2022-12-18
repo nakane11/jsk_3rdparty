@@ -4,6 +4,7 @@
 
 import actionlib
 import rospy
+import numpy as np
 import speech_recognition as SR
 from ros_speech_recognition.recognize_google_cloud import RecognizerEx
 import json
@@ -248,7 +249,8 @@ class ROSSpeechRecognition(object):
         recog_func = None
         if self.engine == Config.SpeechRecognition_Google:
             if not self.args:
-                self.args = {'key': rospy.get_param("~google_key", None)}
+                self.args = {'key': rospy.get_param("~google_key", None),
+                             'show_all': True}
             recog_func = self.recognizer.recognize_google
         elif self.engine == Config.SpeechRecognition_GoogleCloud:
             if not self.args:
@@ -278,7 +280,8 @@ class ROSSpeechRecognition(object):
         elif self.engine == Config.SpeechRecognition_Whisper:
             if not self.args:
                 self.args = {'model': rospy.get_param("~whisper_model", 'base'),
-                             'translate': rospy.get_param("~whisper_translate", False)}
+                             'translate': rospy.get_param("~whisper_translate", False),
+                             'show_dict': True}
                 self.language = rospy.get_param("~whisper_lang", 'english')
             recog_func = self.recognizer.recognize_whisper
 
@@ -292,13 +295,20 @@ class ROSSpeechRecognition(object):
             return
         try:
             rospy.logdebug("Waiting for result... (Sent %d bytes)" % len(audio.get_raw_data()))
+            confidence = 1.0
             result = self.recognize(audio)
             self.play_sound("recognized", 0.05)
+            if self.engine == Config.SpeechRecognition_Google:
+                confidence = result['alternative'][0]['confidence']
+                result = result['alternative'][0]['transcript']
+            elif self.engine == Config.SpeechRecognition_Whisper:
+                confidence = np.exp(result['segments'][0]['avg_logprob'])
+                result = result['text']
             rospy.loginfo("Result: %s" % result.encode('utf-8'))
             self.play_sound("success", 0.1)
             msg = SpeechRecognitionCandidates(
                 transcript=[result],
-                confidence=[1.0],
+                confidence=[confidence],
             )
             self.pub.publish(msg)
             return

@@ -302,7 +302,10 @@ class ROSSpeechRecognition(object):
                 confidence = result['alternative'][0]['confidence']
                 result = result['alternative'][0]['transcript']
             elif self.engine == Config.SpeechRecognition_Whisper:
-                confidence = np.exp(result['segments'][0]['avg_logprob'])
+                if result['text'] =='':
+                    return
+                else:
+                    confidence = np.exp(result['segments'][0]['avg_logprob'])
                 result = result['text']
             rospy.loginfo("Result: %s" % result.encode('utf-8'))
             self.play_sound("success", 0.1)

@@ -11,12 +11,14 @@ import json
 import array
 import sys
 from threading import Lock
+import threading
+import queue
 
 from audio_common_msgs.msg import AudioData
 from sound_play.msg import SoundRequest, SoundRequestAction, SoundRequestGoal
 
 from actionlib_msgs.msg import GoalStatus
-from speech_recognition_msgs.msg import SpeechRecognitionCandidates
+from speech_recognition_msgs.msg import SpeechRecognitionCandidates, SpeechRecognitionCandidatesStamped
 from speech_recognition_msgs.srv import SpeechRecognition
 from speech_recognition_msgs.srv import SpeechRecognitionResponse
 from std_srvs.srv import Empty
@@ -179,6 +181,10 @@ class ROSSpeechRecognition(object):
         if self.continuous:
             rospy.loginfo("Enabled continuous mode")
             rospy.loginfo("Auto start: {}".format(self.auto_start))
+            if self.engine == Config.SpeechRecognition_Google_and_Whisper:
+                self.pub_stamped = rospy.Publisher(rospy.get_param("~voice_stamped_topic", "/Tablet/voice_stamped"),
+                                           SpeechRecognitionCandidatesStamped,
+                                           queue_size=1)
             self.pub = rospy.Publisher(rospy.get_param("~voice_topic", "/Tablet/voice"),
                                        SpeechRecognitionCandidates,
                                        queue_size=1)
@@ -192,6 +198,68 @@ class ROSSpeechRecognition(object):
             self.srv = rospy.Service("speech_recognition",
                                      SpeechRecognition,
                                      self.speech_recognition_srv_cb)
+        if self.engine == Config.SpeechRecognition_Google_and_Whisper:
+            self.whisper_q = queue.Queue()
+            self.google_q = queue.Queue()
+            thread1 = threading.Thread(target=self.whisper_thread)
+            thread2 = threading.Thread(target=self.google_thread)
+            thread1.start()
+            thread2.start()
+
+    def whisper_thread(self):
+        r = rospy.Rate(30)
+        while True:
+            audio, stamp = self.whisper_q.get()
+            if not self.args:
+                self.args = {'model': rospy.get_param("~whisper_model", 'base'),
+                             'translate': rospy.get_param("~whisper_translate", False),
+                             'show_dict': True}
+                self.language = rospy.get_param("~whisper_lang", 'english')
+            result = self.recognizer.recognize_whisper(audio_data=audio, language=self.language, **self.args)
+            if result['text'] =='':
+                return
+            else:
+                confidence = np.exp(result['segments'][0]['avg_logprob'])
+            result = result['text']
+            rospy.loginfo("[Whisper] Result: %s" % result.encode('utf-8'))
+            self.play_sound("success", 0.1)
+            candidates = SpeechRecognitionCandidates(
+                transcript=[result],
+                confidence=[confidence],
+            )
+            msg = SpeechRecognitionCandidatesStamped(
+                candidates = candidates
+            )
+            msg.header.stamp = stamp
+            self.pub_stamped.publish(msg)
+            self.pub.publish(candidates)
+
+            r.sleep()
+
+    def google_thread(self):
+        r = rospy.Rate(30)
+        while True:
+            audio, stamp = self.google_q.get()
+            if not self.args:
+                self.args = {'key': rospy.get_param("~google_key", None),
+                             'show_all': True}
+            result = self.recognizer.recognize_google(audio_data=audio, language=self.language, **self.args)
+            confidence = result['alternative'][0]['confidence']
+            result = result['alternative'][0]['transcript']
+            rospy.loginfo("[Google] Result: %s" % result.encode('utf-8'))
+            self.play_sound("success", 0.1)
+            candidates = SpeechRecognitionCandidates(
+                transcript=[result],
+                confidence=[confidence],
+            )
+            msg = SpeechRecognitionCandidatesStamped(
+                candidates = candidates
+            )
+            msg.header.stamp = stamp
+            self.pub_stamped.publish(msg)
+            self.pub.publish(candidates)
+
+            r.sleep()
 
     def config_callback(self, config, level):
         # config for engine
@@ -294,6 +362,13 @@ class ROSSpeechRecognition(object):
             rospy.loginfo("Robot is speaking now, so recognition is cancelled")
             return
         try:
+            if self.engine == Config.SpeechRecognition_Google_and_Whisper:
+                print(self.whisper_q.qsize())
+                stamp = rospy.Time.now()
+                self.whisper_q.put((audio, stamp))
+                self.google_q.put((audio, stamp))
+                print(self.whisper_q.qsize())
+                return
             rospy.logdebug("Waiting for result... (Sent %d bytes)" % len(audio.get_raw_data()))
             confidence = 1.0
             result = self.recognize(audio)

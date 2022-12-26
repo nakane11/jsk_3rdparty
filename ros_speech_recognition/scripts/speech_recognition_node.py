@@ -209,56 +209,78 @@ class ROSSpeechRecognition(object):
     def whisper_thread(self):
         r = rospy.Rate(30)
         while True:
-            audio, stamp = self.whisper_q.get()
-            if not self.whisper_args:
-                self.whisper_args = {'model': rospy.get_param("~whisper_model", 'base'),
-                             'translate': rospy.get_param("~whisper_translate", False),
-                             'show_dict': True}
-                self.whisper_language = rospy.get_param("~whisper_lang", 'english')
-            result = self.recognizer.recognize_whisper(audio_data=audio, language=self.whisper_language, **self.whisper_args)
-            if result['text'] =='':
-                return
-            else:
-                confidence = np.exp(result['segments'][0]['avg_logprob'])
-            result = result['text']
-            rospy.loginfo("[Whisper] Result: %s" % result.encode('utf-8'))
-            self.play_sound("success", 0.1)
-            candidates = SpeechRecognitionCandidates(
-                transcript=[result],
-                confidence=[confidence],
-            )
-            msg = SpeechRecognitionCandidatesStamped(
-                candidates = candidates
-            )
-            msg.header.stamp = stamp
-            self.pub_stamped.publish(msg)
-            self.pub.publish(candidates)
-
+            try:
+                audio, stamp = self.whisper_q.get()
+                if not self.whisper_args:
+                    self.whisper_args = {'model': rospy.get_param("~whisper_model", 'base'),
+                                 'translate': rospy.get_param("~whisper_translate", False),
+                                 'show_dict': True}
+                    self.whisper_language = rospy.get_param("~whisper_lang", 'english')
+                result = self.recognizer.recognize_whisper(audio_data=audio, language=self.whisper_language, **self.whisper_args)
+                if result['text'] =='':
+                    return
+                else:
+                    confidence = np.exp(result['segments'][0]['avg_logprob'])
+                result = result['text']
+                rospy.loginfo("[Whisper] Result: %s" % result.encode('utf-8'))
+                self.play_sound("success", 0.1)
+                candidates = SpeechRecognitionCandidates(
+                    transcript=[result],
+                    confidence=[confidence],
+                )
+                msg = SpeechRecognitionCandidatesStamped(
+                    candidates = candidates
+                )
+                msg.header.stamp = stamp
+                self.pub_stamped.publish(msg)
+                self.pub.publish(candidates)
+                continue
+            except SR.UnknownValueError as e:
+                if self.dynamic_energy_threshold:
+                    self.recognizer.adjust_for_ambient_noise(self.audio)
+                    rospy.loginfo("Updated energy threshold to %f" % self.recognizer.energy_threshold)
+            except SR.RequestError as e:
+                rospy.logerr("Failed to recognize: %s" % str(e))
+            except SR.UnknownValueError as e:
+                rospy.logerr("Failed to recognize: %s" % str(e))
+            except:
+                rospy.logerr("Unexpected error: %s" % str(sys.exc_info()))
             r.sleep()
 
     def google_thread(self):
         r = rospy.Rate(30)
         while True:
-            audio, stamp = self.google_q.get()
-            if not self.google_args:
-                self.google_args = {'key': rospy.get_param("~google_key", None),
-                             'show_all': True}
-            result = self.recognizer.recognize_google(audio_data=audio, language=self.language, **self.google_args)
-            confidence = result['alternative'][0]['confidence']
-            result = result['alternative'][0]['transcript']
-            rospy.loginfo("[Google] Result: %s" % result.encode('utf-8'))
-            self.play_sound("success", 0.1)
-            candidates = SpeechRecognitionCandidates(
-                transcript=[result],
-                confidence=[confidence],
-            )
-            msg = SpeechRecognitionCandidatesStamped(
-                candidates = candidates
-            )
-            msg.header.stamp = stamp
-            self.pub_stamped.publish(msg)
-            self.pub.publish(candidates)
-
+            try:
+                audio, stamp = self.google_q.get()
+                if not self.google_args:
+                    self.google_args = {'key': rospy.get_param("~google_key", None),
+                                 'show_all': True}
+                result = self.recognizer.recognize_google(audio_data=audio, language=self.language, **self.google_args)
+                confidence = result['alternative'][0]['confidence']
+                result = result['alternative'][0]['transcript']
+                rospy.loginfo("[Google] Result: %s" % result.encode('utf-8'))
+                self.play_sound("success", 0.1)
+                candidates = SpeechRecognitionCandidates(
+                    transcript=[result],
+                    confidence=[confidence],
+                )
+                msg = SpeechRecognitionCandidatesStamped(
+                    candidates = candidates
+                )
+                msg.header.stamp = stamp
+                self.pub_stamped.publish(msg)
+                self.pub.publish(candidates)
+                continue
+            except SR.UnknownValueError as e:
+                if self.dynamic_energy_threshold:
+                    self.recognizer.adjust_for_ambient_noise(self.audio)
+                    rospy.loginfo("Updated energy threshold to %f" % self.recognizer.energy_threshold)
+            except SR.RequestError as e:
+                rospy.logerr("Failed to recognize: %s" % str(e))
+            except SR.UnknownValueError as e:
+                rospy.logerr("Failed to recognize: %s" % str(e))
+            except:
+                rospy.logerr("Unexpected error: %s" % str(sys.exc_info()))
             r.sleep()
 
     def config_callback(self, config, level):
@@ -266,9 +288,8 @@ class ROSSpeechRecognition(object):
         self.language = config.language
         if self.engine != config.engine:
             self.args = {}
-            if self.engine == Config.SpeechRecognition_Google:
-                self.google_args = {}
-                self.whisper_args = {}
+            self.google_args = {}
+            self.whisper_args = {}
             self.engine = config.engine
             rospy.loginfo("Engine: {}".format(self.engine))
 
@@ -367,8 +388,8 @@ class ROSSpeechRecognition(object):
         try:
             if self.engine == Config.SpeechRecognition_Google_and_Whisper:
                 stamp = rospy.Time.now()
-                self.whisper_q.put((audio, stamp))
                 self.google_q.put((audio, stamp))
+                self.whisper_q.put((audio, stamp))
                 return
             rospy.logdebug("Waiting for result... (Sent %d bytes)" % len(audio.get_raw_data()))
             confidence = 1.0

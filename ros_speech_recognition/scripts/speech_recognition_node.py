@@ -210,12 +210,12 @@ class ROSSpeechRecognition(object):
         r = rospy.Rate(30)
         while True:
             audio, stamp = self.whisper_q.get()
-            if not self.args:
-                self.args = {'model': rospy.get_param("~whisper_model", 'base'),
+            if not self.whisper_args:
+                self.whisper_args = {'model': rospy.get_param("~whisper_model", 'base'),
                              'translate': rospy.get_param("~whisper_translate", False),
                              'show_dict': True}
-                self.language = rospy.get_param("~whisper_lang", 'english')
-            result = self.recognizer.recognize_whisper(audio_data=audio, language=self.language, **self.args)
+                self.whisper_language = rospy.get_param("~whisper_lang", 'english')
+            result = self.recognizer.recognize_whisper(audio_data=audio, language=self.whisper_language, **self.whisper_args)
             if result['text'] =='':
                 return
             else:
@@ -240,10 +240,10 @@ class ROSSpeechRecognition(object):
         r = rospy.Rate(30)
         while True:
             audio, stamp = self.google_q.get()
-            if not self.args:
-                self.args = {'key': rospy.get_param("~google_key", None),
+            if not self.google_args:
+                self.google_args = {'key': rospy.get_param("~google_key", None),
                              'show_all': True}
-            result = self.recognizer.recognize_google(audio_data=audio, language=self.language, **self.args)
+            result = self.recognizer.recognize_google(audio_data=audio, language=self.language, **self.google_args)
             confidence = result['alternative'][0]['confidence']
             result = result['alternative'][0]['transcript']
             rospy.loginfo("[Google] Result: %s" % result.encode('utf-8'))
@@ -266,6 +266,9 @@ class ROSSpeechRecognition(object):
         self.language = config.language
         if self.engine != config.engine:
             self.args = {}
+            if self.engine == Config.SpeechRecognition_Google:
+                self.google_args = {}
+                self.whisper_args = {}
             self.engine = config.engine
             rospy.loginfo("Engine: {}".format(self.engine))
 
@@ -363,11 +366,9 @@ class ROSSpeechRecognition(object):
             return
         try:
             if self.engine == Config.SpeechRecognition_Google_and_Whisper:
-                print(self.whisper_q.qsize())
                 stamp = rospy.Time.now()
                 self.whisper_q.put((audio, stamp))
                 self.google_q.put((audio, stamp))
-                print(self.whisper_q.qsize())
                 return
             rospy.logdebug("Waiting for result... (Sent %d bytes)" % len(audio.get_raw_data()))
             confidence = 1.0

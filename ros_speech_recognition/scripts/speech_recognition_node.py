@@ -218,7 +218,7 @@ class ROSSpeechRecognition(object):
                     self.whisper_language = rospy.get_param("~whisper_lang", 'english')
                 result = self.recognizer.recognize_whisper(audio_data=audio, language=self.whisper_language, **self.whisper_args)
                 if result['text'] =='':
-                    return
+                    continue
                 else:
                     confidence = np.exp(result['segments'][0]['avg_logprob'])
                 result = result['text']
@@ -256,6 +256,8 @@ class ROSSpeechRecognition(object):
                     self.google_args = {'key': rospy.get_param("~google_key", None),
                                  'show_all': True}
                 result = self.recognizer.recognize_google(audio_data=audio, language=self.language, **self.google_args)
+                if result == []:
+                    continue
                 confidence = result['alternative'][0]['confidence']
                 result = result['alternative'][0]['transcript']
                 rospy.loginfo("[Google] Result: %s" % result.encode('utf-8'))

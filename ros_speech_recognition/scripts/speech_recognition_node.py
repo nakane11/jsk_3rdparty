@@ -188,6 +188,9 @@ class ROSSpeechRecognition(object):
             self.pub = rospy.Publisher(rospy.get_param("~voice_topic", "/Tablet/voice"),
                                        SpeechRecognitionCandidates,
                                        queue_size=1)
+            self.pub_google = rospy.Publisher("/Tablet/voice_stamped/google",
+                                       SpeechRecognitionCandidatesStamped,
+                                       queue_size=1)
             self.start_srv = rospy.Service(
                 "speech_recognition/start",
                 Empty, self.speech_recogniton_start_srv_cb)
@@ -272,6 +275,7 @@ class ROSSpeechRecognition(object):
                 msg.header.stamp = stamp
                 self.pub_stamped.publish(msg)
                 self.pub.publish(candidates)
+                self.pub_google.publish(msg)
                 continue
             except SR.UnknownValueError as e:
                 if self.dynamic_energy_threshold:

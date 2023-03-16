@@ -288,6 +288,7 @@ class ROSSpeechRecognition(object):
             rospy.loginfo("Robot is speaking now, so recognition is cancelled")
             return
         try:
+            self.play_sound("start", 0.1)
             stamp = rospy.Time.now()
             rospy.logdebug("Waiting for result... (Sent %d bytes)" % len(audio.get_raw_data()))
             result = self.recognize(audio)
@@ -296,9 +297,8 @@ class ROSSpeechRecognition(object):
             if self.engine == Config.SpeechRecognition_Google:
                 confidence = result['alternative'][0]['confidence']
                 result = result['alternative'][0]['transcript']
-            self.play_sound("recognized", 0.05)
             rospy.loginfo("Result: %s" % result.encode('utf-8'))
-            self.play_sound("success", 0.1)
+            self.play_sound("timeout", 0.1)
             msg = SpeechRecognitionCandidates(
                 transcript=[result],
                 confidence=[confidence],

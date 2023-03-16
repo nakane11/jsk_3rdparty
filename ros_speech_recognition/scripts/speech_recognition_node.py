@@ -15,7 +15,7 @@ from audio_common_msgs.msg import AudioData
 from sound_play.msg import SoundRequest, SoundRequestAction, SoundRequestGoal
 
 from actionlib_msgs.msg import GoalStatus
-from speech_recognition_msgs.msg import SpeechRecognitionCandidates
+from speech_recognition_msgs.msg import SpeechRecognitionCandidates, SpeechRecognitionCandidatesStamped
 from speech_recognition_msgs.srv import SpeechRecognition
 from speech_recognition_msgs.srv import SpeechRecognitionResponse
 from std_srvs.srv import Empty
@@ -181,6 +181,9 @@ class ROSSpeechRecognition(object):
             self.pub = rospy.Publisher(rospy.get_param("~voice_topic", "speech_to_text"),
                                        SpeechRecognitionCandidates,
                                        queue_size=1)
+            self.pub_stamped = rospy.Publisher("/Tablet/voice_stamped",
+                                       SpeechRecognitionCandidatesStamped,
+                                       queue_size=1)
             self.start_srv = rospy.Service(
                 "speech_recognition/start",
                 Empty, self.speech_recogniton_start_srv_cb)
@@ -285,6 +288,7 @@ class ROSSpeechRecognition(object):
             rospy.loginfo("Robot is speaking now, so recognition is cancelled")
             return
         try:
+            stamp = rospy.Time.now()
             rospy.logdebug("Waiting for result... (Sent %d bytes)" % len(audio.get_raw_data()))
             result = self.recognize(audio)
             confidence = 1.0
@@ -299,7 +303,12 @@ class ROSSpeechRecognition(object):
                 transcript=[result],
                 confidence=[confidence],
             )
+            stamped_msg = SpeechRecognitionCandidatesStamped(
+                candidates = msg
+            )
+            stamped_msg.header.stamp = stamp
             self.pub.publish(msg)
+            self.pub_stamped.publish(stamped_msg)
             return
         except SR.UnknownValueError as e:
             if self.dynamic_energy_threshold:

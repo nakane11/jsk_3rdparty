@@ -386,3 +386,6 @@ For example, Unitree G1 needs about `volume_scale:=10.0` because its default vol
 roslaunch voicevox voicevox_texttospeech.launch output_type:=audio volume_scale:=10.0
 ros2 launch voicevox voicevox_texttospeech.launch.xml output_type:=audio volume_scale:=10.0
 ```
+
+With `use_plugin:=true`, speech is synthesized inside `soundplay_node` by the `voicevox/voicevox_plugin` sound_play plugin,
+which avoids starting `text2wave` for every utterance.
